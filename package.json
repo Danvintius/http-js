@@ -1,0 +1,21 @@
+{
+  "name": "http-js",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest --coverage"
+  },
+  "author": "Danvintius",
+  "license": "ISC",
+  "devDependencies": {
+    "@babel/cli": "^7.23.0",
+    "@babel/core": "^7.23.0",
+    "@babel/preset-env": "^7.22.20",
+    "webpack": "^5.88.2"
+  },
+  "dependencies": {
+    "core-js": "^3.33.0",
+    "koa": "^2.14.2"
+  }
+}
