@@ -139,3 +139,13 @@ server.listen(port, (err) => {
 
   console.log('Server is listening to ' + port);
 });
+
+xhr.addEventListener('load', () => {
+  if (xhr.status >= 200 && xhr.status < 300) {
+      try {
+          const data = JSON.parse(xhr.responseText);
+      } catch (e) {
+          console.error(e);
+      }
+  }
+});
