@@ -1,151 +1,97 @@
-const fs = require('fs');
-const http = require('http');
-const Koa = require('koa');
-const koaBody = require('koa-body');
-const koaStatic = require('koa-static');
-const path = require('path');
-const uuid = require('uuid');
+import express from "express";
+import cors from "cors";
+import multer from "multer";
+import { writeFile, unlink } from "fs/promises";
+import path from "path";
+import * as crypto from "crypto";
 
-const app = new Koa();
-/*
-let subscriptions = [];
+const app = express();
+const upload = multer();
+const port = process.env.PORT || 3000;
+const host = process.env.HOST || `http://localhost:${port}`; // для деплоя бэкенда в облачный сервис необходимо изменить хост
 
-const public = path.join(__dirname, '/public');
-
-app.use(koaStatic(public));
-
-app.use(koaBody({
-  urlencoded: true,
-  multipart: true,
-}));
-
-app.use((ctx, next) => {
-  if (ctx.request.method !== 'OPTIONS') {
-    next();
-
-    return;
-  }
-
-  ctx.response.set('Access-Control-Allow-Origin', '*');
-
-  ctx.response.set('Access-Control-Allow-Methods', 'DELETE, PUT, PATCH, GET, POST');
-
-  ctx.response.status = 204;
+app.use("/download", express.static(path.join(path.resolve(), "uploads")));
+app.use(cors());
+app.use((req, res, next) => {
+  res.setHeader('Content-Type', 'application/json');
+  next();
 });
 
-app.use((ctx, next) => {
-  if (ctx.request.method !== 'POST' && ctx.request.url !== '/upload') {
-    next();
+let files = [];
 
-    return;
+app.get("/files", async (request, response) => {
+  response
+    .status(200)
+    .send(JSON.stringify({ files }))
+    .end();
+});
+app.get("/files/:id", async (request, response) => {
+  const { id } = request.params;
+  const file = files.find((file) => file.id === id);
+  if (!file) {
+    return response
+      .status(404)
+      .send(JSON.stringify({ message: "File not found" }))
+      .end();
   }
-
-  ctx.response.set('Access-Control-Allow-Origin', '*');
-
-  console.log(ctx.request.files);
-
-  let fileName;
-
+  response
+    .status(200)
+    .send(JSON.stringify({ file }))
+    .end();
+});
+app.post("/files", upload.single("file"), async (request, response) => {
   try {
-    const public = path.join(__dirname, '/public');
-
-    const { file } = ctx.request.files;
-
-    const subfolder = uuid.v4();
-
-    const uploadFolder = public + '/' + subfolder;
-
-    fs.mkdirSync(uploadFolder)
-    fs.copyFileSync(file.path, uploadFolder + '/' + file.name);
-
-    fileName = '/' + subfolder + '/' + file.name;
+    const file = request.file;
+    const fileName = `${Date.now().toString(36)}-${file.originalname}`;
+    const fileSavePath = path.join(path.resolve(), "uploads", fileName);
+    await writeFile(fileSavePath, file.buffer);
+    const fileDocument = {
+      id: crypto.randomUUID(),
+      filename: fileName,
+      path: `${host}/download/${fileName}`,
+    };
+    files.push(fileDocument);
+    response
+      .status(201)
+      .send(JSON.stringify({ file: fileDocument }))
+      .end();
   } catch (error) {
-    ctx.response.status = 500;
-    
-    return;
-  }
-
-  ctx.response.body = fileName;
-});
-
-app.use((ctx, next) => {
-  if (ctx.request.method !== 'POST') {
-    next();
-
-    return;
-  }
-
-  console.log(ctx.request.body);
-
-  const { name, phone } = ctx.request.body;
-
-  ctx.response.set('Access-Control-Allow-Origin', '*');
-
-  if (subscriptions.some(sub => sub.phone === phone)) {
-    ctx.response.status = 400;
-    ctx.response.body = 'subscription exists';
-
-    return;
-  }
-
-  subscriptions.push({ name, phone });
-
-  ctx.response.body = 'OK';
-
-  next();
-});
-
-app.use((ctx, next) => {
-  if (ctx.request.method !== 'DELETE') {
-    next();
-
-    return;
-  }
-  
-  console.log(ctx.request.query);
-
-  const { phone } = ctx.request.query;
-
-  ctx.response.set('Access-Control-Allow-Origin', '*');
-
-  if (subscriptions.every(sub => sub.phone !== phone)) {
-    ctx.response.status = 400;
-    ctx.response.body = 'subscription doesn\'t exists';
-
-    return;
-  }
-
-  subscriptions = subscriptions.filter(sub => sub.phone !== phone);
-
-  ctx.response.body = 'OK';
-
-  next();
-});
-*/
-const server = http.createServer((req, res) => {
-  console.log(req.headers);
-
-  res.end();
-});
-
-const port = 7070;
-
-server.listen(port, (err) => {
-  if (err) {
-    console.log(err);
-
-    return;
-  }
-
-  console.log('Server is listening to ' + port);
-});
-
-xhr.addEventListener('load', () => {
-  if (xhr.status >= 200 && xhr.status < 300) {
-      try {
-          const data = JSON.parse(xhr.responseText);
-      } catch (e) {
-          console.error(e);
-      }
+    console.error(error);
+    response
+      .status(500)
+      .send({ message: error.message });
   }
 });
+app.delete("/files/:id", async (request, response) => {
+  try {
+    const { id } = request.params;
+    const file = files.find((file) => file.id === id);
+    console.log(file);
+
+    if (!file) {
+      return response
+        .status(404)
+        .send(JSON.stringify({ message: "File not found" }))
+        .end();
+    }
+    files = files.filter((file) => file.id !== id);
+    const filePath = path.join(path.resolve(), "uploads", file.filename);
+    await unlink(filePath);
+    response.status(204).end();
+  } catch (error) {
+    console.error(error);
+    response
+      .status(500)
+      .send({ message: error.message });
+  }
+});
+
+const bootstrap = async () => {
+  try {
+    app.listen(port, () => console.log(`Server has been started on ${host}`));
+  } catch (error) {
+    console.error(error);
+  }
+};
+
+bootstrap();
