@@ -1,6 +1,6 @@
-import TemplateEngine from './templateEngine';
+import Template from './Template';
 
-export default class TicketsList extends TemplateEngine {
+export default class TicketsList extends Template {
   constructor(
     ticketsList,
     modal,
